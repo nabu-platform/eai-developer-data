@@ -1,15 +1,20 @@
 package be.nabu.eai.developer.plugin;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.ServiceLoader;
 
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.DeveloperPlugin;
+import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.repository.EAINode;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.libs.artifacts.api.Artifact;
 import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
@@ -34,6 +39,8 @@ public class DataView implements DeveloperPlugin {
 	private static final Insets MARGIN_LEFT = new Insets(0, 0, 0, 10);
 	private Artifact selected;
 	private HBox selectedBox;
+	
+	private Map<String, BooleanProperty> open = new HashMap<String, BooleanProperty>();
 
 	public HBox newTitleBox(String graphic, String title, BooleanProperty open, Button...buttons) {
 		HBox box = new HBox();
@@ -217,6 +224,7 @@ public class DataView implements DeveloperPlugin {
 		return box;
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void initialize(MainController controller) {
 		MainController.registerStyleSheet("developer-data.css");
@@ -227,8 +235,48 @@ public class DataView implements DeveloperPlugin {
 		
 		VBox box = new VBox();
 		box.getChildren().add(new WebApplicationView().initialize(this, controller));
-		box.getChildren().add(new DatabaseView().initialize(this, controller));
 		tab.setContent(box);
+		
+		for (ArtifactViewer viewer : ServiceLoader.load(ArtifactViewer.class)) {
+			SimpleBooleanProperty viewOpen = new SimpleBooleanProperty();
+			open.put(viewer.getClass().getName(), viewOpen);
+			Button create = new Button();
+			create.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
+			create.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					viewer.create();
+				}
+			});
+			VBox container = new VBox();
+			
+			VBox contentBox = new VBox();
+			contentBox.managedProperty().bind(viewOpen);
+			contentBox.visibleProperty().bind(viewOpen);
+			
+			container.getChildren().addAll(
+				newTitleBox(viewer.getGraphic(), viewer.getName(), viewOpen, create), 
+				contentBox
+			);
+			
+			box.getChildren().add(container);
+			
+			List<?> artifacts = controller.getRepository().getArtifacts(viewer.getArtifactClass());
+			for (Object artifact : artifacts) {
+				Node draw = viewer.draw((Artifact) artifact);
+				SimpleBooleanProperty artifactOpen = draw == null ? null : new SimpleBooleanProperty();
+				if (artifactOpen != null) {
+					open.put(((Artifact) artifact).getId(), artifactOpen);
+				}
+				VBox artifactContainer = new VBox();
+				HBox artifactBox = newArtifactBox((Artifact) artifact, artifactOpen);
+				artifactContainer.getChildren().add(artifactBox);
+				if (draw != null) {
+					artifactContainer.getChildren().add(draw);
+				}
+				contentBox.getChildren().add(artifactContainer);
+			}
+		}
 		
 //		Accordion accordion = new Accordion();
 //		accordion.getPanes().add(buildWebApplications(controller));

@@ -1,29 +1,33 @@
 package be.nabu.eai.developer.plugin;
 
-import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.module.jdbc.pool.JDBCPoolArtifact;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.SimpleBooleanProperty;
-import javafx.collections.ObservableList;
 import javafx.scene.Node;
-import javafx.scene.layout.VBox;
 
-public class DatabaseView {
-	private ObservableList<JDBCPoolArtifact> pools;
-	private BooleanProperty open = new SimpleBooleanProperty();
+public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 	
-	public Node initialize(DataView view, MainController controller) {
-		VBox container = new VBox();
+	@Override
+	public Class<JDBCPoolArtifact> getArtifactClass() {
+		return JDBCPoolArtifact.class;
+	}
+
+	@Override
+	public Node draw(JDBCPoolArtifact artifact) {
+		return null;
+	}
+
+	@Override
+	public String getGraphic() {
+		return "developer-data/database.png";
+	}
+
+	@Override
+	public String getName() {
+		return "Databases";
+	}
+
+	@Override
+	public void create() {
 		
-		VBox contentBox = new VBox();
-		contentBox.managedProperty().bind(open);
-		contentBox.visibleProperty().bind(open);
-		
-		container.getChildren().addAll(
-			view.newTitleBox("developer-data/database.png", "Databases", open), 
-			contentBox
-		);
-		
-		return container;
 	}
 }
