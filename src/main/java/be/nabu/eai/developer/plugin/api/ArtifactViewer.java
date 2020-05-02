@@ -8,7 +8,7 @@ public interface ArtifactViewer<T extends Artifact> {
 	public String getGraphic();
 	public Class<T> getArtifactClass();
 	public void create();
-	public Node draw(T artifact);
+	public Node draw(String project, T artifact);
 	// by default we limit to artifacts within the project
 	public default boolean allow(String project, String artifactId) {
 		return artifactId.startsWith(project + ".");

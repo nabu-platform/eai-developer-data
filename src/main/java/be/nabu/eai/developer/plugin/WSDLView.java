@@ -27,7 +27,7 @@ public class WSDLView implements ArtifactViewer<WSDLClient> {
 	}
 
 	@Override
-	public Node draw(WSDLClient artifact) {
+	public Node draw(String project, WSDLClient artifact) {
 		return null;
 	}
 

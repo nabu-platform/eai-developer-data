@@ -27,7 +27,7 @@ public class SwaggerClientView implements ArtifactViewer<SwaggerClient> {
 	}
 
 	@Override
-	public Node draw(SwaggerClient artifact) {
+	public Node draw(String project, SwaggerClient artifact) {
 		return null;
 	}
 

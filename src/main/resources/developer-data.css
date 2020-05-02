@@ -29,6 +29,19 @@
 	-fx-font-size: 13px;
 	-fx-font-weight: bold;
 }
+.first-child-entry {
+	-fx-padding: 5px 20px 5px 40px;
+}
+.first-child-entry .entry-title {
+	-fx-font-size: 12px;
+	-fx-text-fill: #444;
+}
+.first-child-entry .entry-description {
+	-fx-font-size: 11px;
+}
+.first-child-entry .entry-id {
+	-fx-font-size: 9px;
+}
 .entry-description {
 	-fx-font-size: 12px;
 	-fx-text-fill: #666;

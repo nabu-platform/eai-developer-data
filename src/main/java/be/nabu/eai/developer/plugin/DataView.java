@@ -12,8 +12,11 @@ import be.nabu.eai.api.NamingConvention;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.DeveloperPlugin;
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
+import be.nabu.eai.developer.util.Confirm;
+import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.repository.EAINode;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.libs.artifacts.api.Artifact;
 import javafx.beans.property.BooleanProperty;
@@ -41,9 +44,21 @@ public class DataView implements DeveloperPlugin {
 	private static final Insets MARGIN_LEFT = new Insets(0, 0, 0, 10);
 	private Artifact selected;
 	private HBox selectedBox;
+	private static DataView instance;
+	
+	public DataView() {
+		instance = this;
+	}
 	
 	private Map<String, BooleanProperty> open = new HashMap<String, BooleanProperty>();
 
+	public BooleanProperty getOpen(String id) {
+		if (!open.containsKey(id)) {
+			open.put(id, new SimpleBooleanProperty());
+		}
+		return open.get(id);
+	}
+	
 	public HBox newTitleBox(String graphic, String title, BooleanProperty open, Button...buttons) {
 		HBox box = new HBox();
 		box.getStyleClass().addAll("developer-title-box");
@@ -93,7 +108,12 @@ public class DataView implements DeveloperPlugin {
 			node.setVisible(visible);
 		}
 	}
-	public HBox newArtifactBox(Artifact artifact, BooleanProperty open, Button...buttons) {
+	public HBox newArtifactBox(Artifact artifact, boolean canOpen, Button...buttons) {
+		SimpleBooleanProperty artifactOpen = canOpen ? new SimpleBooleanProperty() : null;
+		if (artifactOpen != null) {
+			open.put(((Artifact) artifact).getId(), artifactOpen);
+		}
+		
 		Entry entry = MainController.getInstance().getRepository().getEntry(artifact.getId());
 		
 		String title = entry.getNode().getName() == null ? artifact.getId() : entry.getNode().getName();
@@ -120,7 +140,7 @@ public class DataView implements DeveloperPlugin {
 		content.getChildren().add(idLabel);
 		idLabel.getStyleClass().add("entry-id");
 		visible(!idLabel.getText().equals(titleLabel.getText()), idLabel);
-		visible(!descriptionLabel.getText().isEmpty(), descriptionLabel);
+		visible(!descriptionLabel.getText().trim().isEmpty(), descriptionLabel);
 		
 		content.getChildren().add(descriptionLabel);
 		
@@ -158,7 +178,7 @@ public class DataView implements DeveloperPlugin {
 							visible(true, buttonBox.getChildren());
 							
 							visible(!idLabel.getText().equals(titleLabel.getText()), idLabel);
-							visible(!descriptionLabel.getText().isEmpty(), descriptionLabel);
+							visible(!descriptionLabel.getText().trim().isEmpty(), descriptionLabel);
 						}
 					};
 					
@@ -173,7 +193,7 @@ public class DataView implements DeveloperPlugin {
 							((RepositoryEntry) entry).saveNode();
 							// TODO: tell others about the change! maybe a new collaboration event to only update node?
 							titleLabel.setText(node.getName() == null ? artifact.getId() : node.getName());
-							descriptionLabel.setText(node.getDescription());
+							descriptionLabel.setText(node.getDescription() == null ? "" : node.getDescription());
 							cancelEvent.handle(event);
 						}
 					});
@@ -185,16 +205,26 @@ public class DataView implements DeveloperPlugin {
 				}
 			});
 			buttonBox.getChildren().add(edit);
+			
+			Button delete = new Button();
+			delete.setGraphic(MainController.loadFixedSizeGraphic("developer-data/delete.png", 12));
+			delete.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					MainController.getInstance().getRepositoryBrowser().remove((ResourceEntry) entry);
+				}
+			});
+			buttonBox.getChildren().add(delete);
 		}
 		if (buttons != null) {
 			buttonBox.getChildren().addAll(buttons);
 		}
 		box.getChildren().add(buttonBox);
 		
-		if (open != null) {
-			ImageView opened = MainController.loadGraphic(open.get() ? "minus.png" : "plus.png");
+		if (artifactOpen != null) {
+			ImageView opened = MainController.loadGraphic(artifactOpen.get() ? "minus.png" : "plus.png");
 			box.getChildren().add(0, opened);
-			open.addListener(new ChangeListener<Boolean>() {
+			artifactOpen.addListener(new ChangeListener<Boolean>() {
 				@Override
 				public void changed(ObservableValue<? extends Boolean> arg0, Boolean arg1, Boolean arg2) {
 					ImageView opened = MainController.loadGraphic(arg2 ? "minus.png" : "plus.png");
@@ -209,8 +239,8 @@ public class DataView implements DeveloperPlugin {
 		box.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
 			@Override
 			public void handle(MouseEvent arg0) {
-				if (open != null) {
-					open.set(!open.get());
+				if (artifactOpen != null) {
+					artifactOpen.set(!artifactOpen.get());
 				}
 				if (selectedBox != null) {
 					selectedBox.getStyleClass().remove("selected-box");
@@ -295,13 +325,9 @@ public class DataView implements DeveloperPlugin {
 			for (Object artifact : artifacts) {
 				String id = ((Artifact) artifact).getId();
 				if (viewer.allow(project, id)) {
-					Node draw = viewer.draw((Artifact) artifact);
-					SimpleBooleanProperty artifactOpen = draw == null ? null : new SimpleBooleanProperty();
-					if (artifactOpen != null) {
-						open.put(((Artifact) artifact).getId(), artifactOpen);
-					}
+					Node draw = viewer.draw(project, (Artifact) artifact);
 					VBox artifactContainer = new VBox();
-					HBox artifactBox = newArtifactBox((Artifact) artifact, artifactOpen);
+					HBox artifactBox = newArtifactBox((Artifact) artifact, draw != null);
 					artifactContainer.getChildren().add(artifactBox);
 					if (draw != null) {
 						artifactContainer.getChildren().add(draw);
@@ -312,4 +338,7 @@ public class DataView implements DeveloperPlugin {
 		}
 	}
 
+	public static DataView getInstance() {
+		return instance;
+	}
 }

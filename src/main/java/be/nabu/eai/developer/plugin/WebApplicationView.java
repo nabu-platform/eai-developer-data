@@ -27,7 +27,7 @@ public class WebApplicationView implements ArtifactViewer<WebApplication> {
 	}
 
 	@Override
-	public Node draw(WebApplication artifact) {
+	public Node draw(String project, WebApplication artifact) {
 		return null;
 	}
 }

@@ -27,7 +27,7 @@ public class ServiceView implements ArtifactViewer<VMService> {
 	}
 
 	@Override
-	public Node draw(VMService artifact) {
+	public Node draw(String project, VMService artifact) {
 		return null;
 	}
 
