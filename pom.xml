@@ -156,6 +156,11 @@
 		</dependency>
 		<dependency>
 			<groupId>nabu</groupId>
+			<artifactId>eai-module-types-structure</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
 			<artifactId>eai-module-services-crud</artifactId>
 			<scope>provided</scope>
 		</dependency>

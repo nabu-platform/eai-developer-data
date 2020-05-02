@@ -11,6 +11,7 @@ import java.util.ServiceLoader;
 import be.nabu.eai.api.NamingConvention;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.DeveloperPlugin;
+import be.nabu.eai.developer.components.RepositoryBrowser;
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
@@ -18,7 +19,9 @@ import be.nabu.eai.repository.EAINode;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
+import be.nabu.jfx.control.tree.drag.TreeDragDrop;
 import be.nabu.libs.artifacts.api.Artifact;
+import be.nabu.libs.services.api.DefinedService;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
@@ -30,18 +33,22 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 public class DataView implements DeveloperPlugin {
 
-	private static final Insets MARGIN_LEFT = new Insets(0, 0, 0, 10);
+	public static final Insets MARGIN_LEFT = new Insets(0, 0, 0, 10);
 	private Artifact selected;
 	private HBox selectedBox;
 	private static DataView instance;
@@ -85,7 +92,9 @@ public class DataView implements DeveloperPlugin {
 			box.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
 				@Override
 				public void handle(MouseEvent arg0) {
-					open.set(!open.get());
+					if (arg0.getClickCount() == 2) {
+						open.set(!open.get());
+					}
 				}
 			});
 			open.addListener(new ChangeListener<Boolean>() {
@@ -99,10 +108,10 @@ public class DataView implements DeveloperPlugin {
 		return box;
 	}
 	
-	private void visible(boolean visible, Node...nodes) {
+	public static void visible(boolean visible, Node...nodes) {
 		visible(visible, Arrays.asList(nodes));
 	}
-	private void visible(boolean visible, List<Node> nodes) {
+	public static void visible(boolean visible, List<Node> nodes) {
 		for (Node node : nodes) {
 			node.setManaged(visible);
 			node.setVisible(visible);
@@ -152,6 +161,11 @@ public class DataView implements DeveloperPlugin {
 		HBox buttonBox = new HBox();
 		HBox.setMargin(buttonBox, MARGIN_LEFT);
 		HBox.setHgrow(buttonBox, Priority.NEVER);
+		
+		// custom buttons are first
+		if (buttons != null) {
+			buttonBox.getChildren().addAll(buttons);
+		}
 		
 		if (entry instanceof RepositoryEntry) {
 			Button edit = new Button();
@@ -216,9 +230,15 @@ public class DataView implements DeveloperPlugin {
 			});
 			buttonBox.getChildren().add(delete);
 		}
-		if (buttons != null) {
-			buttonBox.getChildren().addAll(buttons);
-		}
+		Button view = new Button();
+		view.setGraphic(MainController.loadFixedSizeGraphic("right-chevron.png", 12));
+		view.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+			@Override
+			public void handle(ActionEvent arg0) {
+				MainController.getInstance().open(artifact.getId());					
+			}
+		});
+		buttonBox.getChildren().add(view);
 		box.getChildren().add(buttonBox);
 		
 		if (artifactOpen != null) {
@@ -239,7 +259,7 @@ public class DataView implements DeveloperPlugin {
 		box.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
 			@Override
 			public void handle(MouseEvent arg0) {
-				if (artifactOpen != null) {
+				if (artifactOpen != null && arg0.getClickCount() == 2) {
 					artifactOpen.set(!artifactOpen.get());
 				}
 				if (selectedBox != null) {
@@ -247,9 +267,17 @@ public class DataView implements DeveloperPlugin {
 				}
 				selectedBox = box;
 				selectedBox.getStyleClass().add("selected-box");
-				if (arg0.getClickCount() == 2) {
-					MainController.getInstance().open(artifact.getId());
-				}
+			}
+		});
+		
+		// we can always drag the boxes, we made it compatible with the repository tree for maximum reuse
+		box.addEventHandler(MouseEvent.DRAG_DETECTED, new EventHandler<MouseEvent>() {
+			@Override
+			public void handle(MouseEvent arg0) {
+				Dragboard dragboard = box.startDragAndDrop(TransferMode.MOVE);
+				ClipboardContent clipboard = new ClipboardContent();
+				clipboard.put(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(artifact.getClass())), artifact.getId());
+				dragboard.setContent(clipboard);
 			}
 		});
 		
@@ -259,32 +287,30 @@ public class DataView implements DeveloperPlugin {
 	@Override
 	public void initialize(MainController controller) {
 		MainController.registerStyleSheet("developer-data.css");
-		boolean first = true;
 		for (Entry child : controller.getRepository().getRoot()) {
 			if (!child.getName().equals("nabu")) {
-				loadProject(controller, child.getName(), first);
-				if (first) {
-					first = false;
-				}
+				loadProject(controller, child.getName());
 			}
 		}
 		// we always add a tab to create a new project
 		Tab tab = new Tab("New Project");
+		// just select the first tab by default
+		controller.getTabBrowsers().getSelectionModel().select(controller.getTabBrowsers().getTabs().get(0));
 		tab.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 10));
 		controller.getTabBrowsers().getTabs().add(controller.getTabBrowsers().getTabs().size() - 1, tab);
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private void loadProject(MainController controller, String project, boolean select) {
+	private void loadProject(MainController controller, String project) {
 		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(project, NamingConvention.LOWER_CAMEL_CASE));
 		tab.setId(project);
 		controller.getTabBrowsers().getTabs().add(0, tab);
-		if (select) {
-			controller.getTabBrowsers().getSelectionModel().select(tab);
-		}
 		
+		ScrollPane scroll = new ScrollPane();
+		scroll.setFitToWidth(true);
 		VBox box = new VBox();
-		tab.setContent(box);
+		scroll.setContent(box);
+		tab.setContent(scroll);
 		
 		List<ArtifactViewer> viewers = new ArrayList<ArtifactViewer>();
 		for (ArtifactViewer viewer : ServiceLoader.load(ArtifactViewer.class)) {
@@ -311,11 +337,12 @@ public class DataView implements DeveloperPlugin {
 			VBox container = new VBox();
 			
 			VBox contentBox = new VBox();
+			contentBox.getStyleClass().add("developer-content-box");
 			contentBox.managedProperty().bind(viewOpen);
 			contentBox.visibleProperty().bind(viewOpen);
 			
 			container.getChildren().addAll(
-				newTitleBox(viewer.getGraphic(), viewer.getName(), viewOpen, create), 
+				newTitleBox(viewer.getSectionGraphic(), viewer.getName(), viewOpen, create), 
 				contentBox
 			);
 			
@@ -327,7 +354,15 @@ public class DataView implements DeveloperPlugin {
 				if (viewer.allow(project, id)) {
 					Node draw = viewer.draw(project, (Artifact) artifact);
 					VBox artifactContainer = new VBox();
-					HBox artifactBox = newArtifactBox((Artifact) artifact, draw != null);
+					
+					Button[] array = (Button[]) viewer.getButtons(project, (Artifact) artifact).toArray(new Button[0]);
+					HBox artifactBox = newArtifactBox((Artifact) artifact, draw != null, array);
+					
+					if (viewer.getArtifactGraphic() != null) {
+						Node graphic = MainController.loadFixedSizeGraphic(viewer.getArtifactGraphic(), 16, 25);
+						artifactBox.getChildren().add(1, graphic);
+					}
+					
 					artifactContainer.getChildren().add(artifactBox);
 					if (draw != null) {
 						artifactContainer.getChildren().add(draw);

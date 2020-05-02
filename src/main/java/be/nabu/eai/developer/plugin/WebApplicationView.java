@@ -12,7 +12,7 @@ public class WebApplicationView implements ArtifactViewer<WebApplication> {
 	}
 
 	@Override
-	public String getGraphic() {
+	public String getSectionGraphic() {
 		return "developer-data/website.png";
 	}
 

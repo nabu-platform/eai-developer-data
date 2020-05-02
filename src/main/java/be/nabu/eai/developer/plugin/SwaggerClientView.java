@@ -12,7 +12,7 @@ public class SwaggerClientView implements ArtifactViewer<SwaggerClient> {
 	}
 
 	@Override
-	public String getGraphic() {
+	public String getSectionGraphic() {
 		return "developer-data/connectors.png";
 	}
 

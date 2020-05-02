@@ -12,7 +12,7 @@ public class WSDLView implements ArtifactViewer<WSDLClient> {
 	}
 
 	@Override
-	public String getGraphic() {
+	public String getSectionGraphic() {
 		return "developer-data/connectors.png";
 	}
 

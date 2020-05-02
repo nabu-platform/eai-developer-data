@@ -32,6 +32,9 @@
 .first-child-entry {
 	-fx-padding: 5px 20px 5px 40px;
 }
+.second-child-entry {
+	-fx-padding: 5px 20px 5px 60px;
+}
 .first-child-entry .entry-title {
 	-fx-font-size: 12px;
 	-fx-text-fill: #444;
@@ -50,4 +53,12 @@
 .entry-id {
 	-fx-font-size: 10px;
 	-fx-text-fill: #aaa;
+}
+.developer-service {
+	-fx-text-fill: #666;
+	-fx-border-width: 0px 0px 1px 0px;
+	-fx-border-style: dashed;
+	-fx-border-color: #aaa;
+	-fx-font-size: 12px;
+	-fx-font-weight: bold;
 }

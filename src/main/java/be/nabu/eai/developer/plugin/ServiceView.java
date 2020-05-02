@@ -12,8 +12,8 @@ public class ServiceView implements ArtifactViewer<VMService> {
 	}
 
 	@Override
-	public String getGraphic() {
-		return "developer-data/services.png";
+	public String getSectionGraphic() {
+		return "developer-data/service_big.png";
 	}
 
 	@Override
