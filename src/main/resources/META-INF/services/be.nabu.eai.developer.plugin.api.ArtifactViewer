@@ -1,1 +1,5 @@
+be.nabu.eai.developer.plugin.WebApplicationView
 be.nabu.eai.developer.plugin.DatabaseView
+be.nabu.eai.developer.plugin.SwaggerClientView
+be.nabu.eai.developer.plugin.ServiceView
+be.nabu.eai.developer.plugin.WSDLView

@@ -166,6 +166,26 @@
 		</dependency>
 		<dependency>
 			<groupId>nabu</groupId>
+			<artifactId>eai-module-swagger</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
+			<artifactId>eai-module-wsdl-client</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
+			<artifactId>eai-module-services-interface</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
+			<artifactId>eai-module-services-vm</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
 			<artifactId>eai-module-services-jdbc</artifactId>
 			<scope>provided</scope>
 		</dependency>

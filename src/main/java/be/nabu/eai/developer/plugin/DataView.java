@@ -1,11 +1,14 @@
 package be.nabu.eai.developer.plugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 
+import be.nabu.eai.api.NamingConvention;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.DeveloperPlugin;
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
@@ -27,7 +30,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
@@ -224,20 +226,48 @@ public class DataView implements DeveloperPlugin {
 		return box;
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void initialize(MainController controller) {
 		MainController.registerStyleSheet("developer-data.css");
-		
-		Tab tab = new Tab("Data");
+		boolean first = true;
+		for (Entry child : controller.getRepository().getRoot()) {
+			if (!child.getName().equals("nabu")) {
+				loadProject(controller, child.getName(), first);
+				if (first) {
+					first = false;
+				}
+			}
+		}
+		// we always add a tab to create a new project
+		Tab tab = new Tab("New Project");
+		tab.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 10));
+		controller.getTabBrowsers().getTabs().add(controller.getTabBrowsers().getTabs().size() - 1, tab);
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private void loadProject(MainController controller, String project, boolean select) {
+		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(project, NamingConvention.LOWER_CAMEL_CASE));
+		tab.setId(project);
 		controller.getTabBrowsers().getTabs().add(0, tab);
-		controller.getTabBrowsers().getSelectionModel().select(tab);
+		if (select) {
+			controller.getTabBrowsers().getSelectionModel().select(tab);
+		}
 		
 		VBox box = new VBox();
-		box.getChildren().add(new WebApplicationView().initialize(this, controller));
 		tab.setContent(box);
 		
+		List<ArtifactViewer> viewers = new ArrayList<ArtifactViewer>();
 		for (ArtifactViewer viewer : ServiceLoader.load(ArtifactViewer.class)) {
+			viewers.add(viewer);
+		}
+		viewers.sort(new Comparator<ArtifactViewer>() {
+			@Override
+			public int compare(ArtifactViewer o1, ArtifactViewer o2) {
+				return o1.getName().compareTo(o2.getName());
+			}
+		});
+		
+		for (ArtifactViewer viewer : viewers) {
 			SimpleBooleanProperty viewOpen = new SimpleBooleanProperty();
 			open.put(viewer.getClass().getName(), viewOpen);
 			Button create = new Button();
@@ -263,31 +293,23 @@ public class DataView implements DeveloperPlugin {
 			
 			List<?> artifacts = controller.getRepository().getArtifacts(viewer.getArtifactClass());
 			for (Object artifact : artifacts) {
-				Node draw = viewer.draw((Artifact) artifact);
-				SimpleBooleanProperty artifactOpen = draw == null ? null : new SimpleBooleanProperty();
-				if (artifactOpen != null) {
-					open.put(((Artifact) artifact).getId(), artifactOpen);
+				String id = ((Artifact) artifact).getId();
+				if (viewer.allow(project, id)) {
+					Node draw = viewer.draw((Artifact) artifact);
+					SimpleBooleanProperty artifactOpen = draw == null ? null : new SimpleBooleanProperty();
+					if (artifactOpen != null) {
+						open.put(((Artifact) artifact).getId(), artifactOpen);
+					}
+					VBox artifactContainer = new VBox();
+					HBox artifactBox = newArtifactBox((Artifact) artifact, artifactOpen);
+					artifactContainer.getChildren().add(artifactBox);
+					if (draw != null) {
+						artifactContainer.getChildren().add(draw);
+					}
+					contentBox.getChildren().add(artifactContainer);
 				}
-				VBox artifactContainer = new VBox();
-				HBox artifactBox = newArtifactBox((Artifact) artifact, artifactOpen);
-				artifactContainer.getChildren().add(artifactBox);
-				if (draw != null) {
-					artifactContainer.getChildren().add(draw);
-				}
-				contentBox.getChildren().add(artifactContainer);
 			}
 		}
-		
-//		Accordion accordion = new Accordion();
-//		accordion.getPanes().add(buildWebApplications(controller));
-//		tab.setContent(accordion);
-	}
-	
-	public static TitledPane buildWebApplications(MainController controller) {
-		TitledPane pane = new TitledPane();
-		pane.setText("Applications");
-		
-		return pane;
 	}
 
 }
