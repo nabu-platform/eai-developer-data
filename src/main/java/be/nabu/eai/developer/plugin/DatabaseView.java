@@ -20,6 +20,7 @@ import be.nabu.eai.module.types.structure.StructureManager;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.api.DragHandler;
 import be.nabu.eai.module.web.application.resource.WebBrowser;
+import be.nabu.eai.repository.EAINode;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -38,6 +39,7 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -84,15 +86,11 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 					@Override
 					public void run() {
 						box.getChildren().clear();
-						// this is by far the most compatible with "manually built" applications by not having to assume positions at this point
 						VBox contentBox = new VBox();
 						box.getChildren().add(contentBox);
-						contentBox.managedProperty().bind(DataView.getInstance().getOpen(artifact.getId()));
-						contentBox.visibleProperty().bind(DataView.getInstance().getOpen(artifact.getId()));
 						contentBox.getChildren().add(typesBox);
 						drawTypes(project, artifact);
 						if (listTables != null) {
-							managedCollectionNames = new ArrayList<String>();
 							VBox toAdd = new VBox();
 							contentBox.getChildren().add(toAdd);
 							BooleanProperty open = DataView.getInstance().getOpen(artifact.getId() + ":add");
@@ -101,7 +99,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 							
 							TextField field = new TextField();
 							field.setPromptText("Search");
-							VBox.setMargin(field, new Insets(10));
+							VBox.setMargin(field, new Insets(10, 20, 10, 40));
 							toAdd.getChildren().add(field);
 							for (TableDescription table : listTables) {
 								boolean found = false;
@@ -115,6 +113,11 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 									continue;
 								}
 								HBox box = new HBox();
+								box.setAlignment(Pos.CENTER_LEFT);
+								
+								box.getChildren().add(MainController.loadGraphic("item.png"));
+								box.getChildren().add(MainController.loadFixedSizeGraphic("developer-data/table.png", 16, 25));
+								
 								box.getStyleClass().add("first-child-entry");
 								Label label = new Label((table.getSchema() != null ? table.getSchema() + "." : "") + table.getName());
 								label.setText(label.getText().toLowerCase());
@@ -122,6 +125,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 								box.getChildren().add(label);
 								label.setMaxWidth(Double.MAX_VALUE);
 								HBox.setHgrow(label, Priority.ALWAYS);
+								HBox.setMargin(label, DataView.MARGIN_LEFT);
 								
 								Button button = new Button();
 								button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
@@ -153,9 +157,13 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 												structure.setId(createNode.getId());
 												structure.setName(name);
 												// likely overwritten by generation
-												structure.setProperty(new ValueImpl<String>(CollectionNameProperty.getInstance(), table.getName()));
+												structure.setProperty(new ValueImpl<String>(CollectionNameProperty.getInstance(), table.getName().toLowerCase()));
 												JDBCPoolUtils.toType(structure, table);
 												structureManager.save(createNode, structure);
+												// set the table name as descriptive name
+												createNode.getNode().setName(table.getName().toLowerCase());
+												// update the node
+												createNode.saveNode();
 												((RepositoryEntry) typeChild).refresh(true, false);
 												MainController.getInstance().getCollaborationClient().created(structure.getId(), "Added defined type for table: " + table.getName());
 												MainController.getInstance().getAsynchronousRemoteServer().reload(structure.getId());
@@ -175,6 +183,8 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 												CRUDArtifactManager manager = new CRUDArtifactManager();
 												createNode = ((RepositoryEntry) crudChild).createNode(name, manager, true);
 												CRUDArtifact crud = new CRUDArtifact(createNode.getId(), createNode.getContainer(), createNode.getRepository());
+												// we use the artifact
+												crud.getConfig().setConnection(artifact);
 												crud.getConfig().setProvider((CRUDProviderArtifact) entry.getRepository().resolve("nabu.services.crud.provider.basic.provider"));
 												crud.getConfig().setCoreType(structure);
 												manager.save(createNode, crud);
@@ -199,6 +209,9 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 												drawTypes(project, artifact);
 												// add no more :|
 												toAdd.getChildren().remove(box);
+												
+												// close the add option, we likely want to add only one table
+												DataView.getInstance().getOpen(artifact.getId() + ":add").set(false);
 											}
 											catch (Exception e) {
 												MainController.getInstance().notify(e);
@@ -277,7 +290,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 				newArtifactBox.getStyleClass().add("first-child-entry");
 				childBox.getChildren().add(newArtifactBox);
 				
-				newArtifactBox.getChildren().add(1, MainController.loadGraphic("types/structure.gif"));
+				newArtifactBox.getChildren().add(1, MainController.loadFixedSizeGraphic("developer-data/table.png", 16, 25));
 				
 				VBox content = new VBox();
 				content.getStyleClass().add("developer-content-box");
@@ -295,9 +308,10 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 							content.getChildren().add(resultBox);
 						}
 					}
-					HBox crudBox = DataView.getInstance().newArtifactBox(crud, false);
-					crudBox.getStyleClass().add("second-child-entry");
-					content.getChildren().add(crudBox);
+					// not necessary, we have a button above
+//					HBox crudBox = DataView.getInstance().newArtifactBox(crud, false);
+//					crudBox.getStyleClass().add("second-child-entry");
+//					content.getChildren().add(crudBox);
 				}
 				
 				// for each data type you can have 5 services: get/list/delete/update/read
@@ -381,17 +395,28 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 	@Override
 	public List<Button> getButtons(String project, JDBCPoolArtifact artifact) {
 		Button button = new Button();
+		DataView.getInstance().getOpen(artifact.getId() + ":add").addListener(new ChangeListener<Boolean>() {
+			@Override
+			public void changed(ObservableValue<? extends Boolean> arg0, Boolean arg1, Boolean arg2) {
+				if (arg2) {
+					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/cancel.png", 12));
+				}
+				else {
+					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
+				}
+			}
+		});
 		button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
 		button.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 			@Override
 			public void handle(ActionEvent arg0) {
 				BooleanProperty open = DataView.getInstance().getOpen(artifact.getId() + ":add");
 				if (open.get()) {
-					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
+//					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/add.png", 12));
 					DataView.getInstance().getOpen(artifact.getId() + ":add").set(false);
 				}
 				else {
-					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/cancel.png", 12));
+//					button.setGraphic(MainController.loadFixedSizeGraphic("developer-data/cancel.png", 12));
 					DataView.getInstance().getOpen(artifact.getId() + ":add").set(true);
 					// make sure the artifact itself is open
 					DataView.getInstance().getOpen(artifact.getId()).set(true);

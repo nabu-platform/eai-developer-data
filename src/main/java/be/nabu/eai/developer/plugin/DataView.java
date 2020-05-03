@@ -366,6 +366,8 @@ public class DataView implements DeveloperPlugin {
 					artifactContainer.getChildren().add(artifactBox);
 					if (draw != null) {
 						artifactContainer.getChildren().add(draw);
+						draw.managedProperty().bind(DataView.getInstance().getOpen(id));
+						draw.visibleProperty().bind(DataView.getInstance().getOpen(id));
 					}
 					contentBox.getChildren().add(artifactContainer);
 				}
