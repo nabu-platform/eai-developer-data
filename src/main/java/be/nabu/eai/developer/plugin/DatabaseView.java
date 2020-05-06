@@ -28,6 +28,7 @@ import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.property.ValueUtils;
+import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.types.properties.CollectionNameProperty;
@@ -187,6 +188,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 												crud.getConfig().setConnection(artifact);
 												crud.getConfig().setProvider((CRUDProviderArtifact) entry.getRepository().resolve("nabu.services.crud.provider.basic.provider"));
 												crud.getConfig().setCoreType(structure);
+												crud.getConfig().setChangeTracker((DefinedService) entry.getRepository().resolve("nabu.cms.core.providers.misc.changeTracker"));
 												manager.save(createNode, crud);
 												((RepositoryEntry) crudChild).refresh(true, false);
 												MainController.getInstance().getCollaborationClient().created(crud.getId(), "Added crud for: " + structure.getId());
@@ -227,7 +229,8 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 								public void changed(ObservableValue<? extends String> arg0, String arg1, String arg2) {
 									for (Node child : toAdd.getChildren()) {
 										if (child instanceof HBox) {
-											Label label = (Label) ((HBox) child).getChildren().get(0);
+											// first child is the "item" icon, second is the table icon
+											Label label = (Label) ((HBox) child).getChildren().get(2);
 											if (arg2 == null || arg2.trim().isEmpty() || label.getText().matches("(?i).*" + arg2.replace("*", ".*") + ".*")) {
 												DataView.visible(true, child);
 											}
