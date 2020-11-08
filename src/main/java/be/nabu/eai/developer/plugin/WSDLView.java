@@ -2,6 +2,7 @@ package be.nabu.eai.developer.plugin;
 
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.module.wsdl.client.WSDLClient;
+import be.nabu.eai.repository.api.Entry;
 import javafx.scene.Node;
 
 public class WSDLView implements ArtifactViewer<WSDLClient> {
@@ -27,7 +28,7 @@ public class WSDLView implements ArtifactViewer<WSDLClient> {
 	}
 
 	@Override
-	public Node draw(String project, WSDLClient artifact) {
+	public Node draw(Entry project, WSDLClient artifact) {
 		return null;
 	}
 

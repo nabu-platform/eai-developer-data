@@ -1,6 +1,7 @@
 package be.nabu.eai.developer.plugin;
 
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
+import be.nabu.eai.repository.api.Entry;
 import be.nabu.libs.services.vm.api.VMService;
 import javafx.scene.Node;
 
@@ -27,13 +28,13 @@ public class ServiceView implements ArtifactViewer<VMService> {
 	}
 
 	@Override
-	public Node draw(String project, VMService artifact) {
+	public Node draw(Entry project, VMService artifact) {
 		return null;
 	}
 
 	@Override
-	public boolean allow(String project, String artifactId) {
-		return artifactId.startsWith(project + ".services.");
+	public boolean allow(Entry project, String artifactId) {
+		return artifactId.startsWith(project.getId() + ".services.");
 	}
 
 }

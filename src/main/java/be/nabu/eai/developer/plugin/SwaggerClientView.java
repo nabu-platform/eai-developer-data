@@ -2,6 +2,7 @@ package be.nabu.eai.developer.plugin;
 
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.module.swagger.client.SwaggerClient;
+import be.nabu.eai.repository.api.Entry;
 import javafx.scene.Node;
 
 public class SwaggerClientView implements ArtifactViewer<SwaggerClient> {
@@ -27,7 +28,7 @@ public class SwaggerClientView implements ArtifactViewer<SwaggerClient> {
 	}
 
 	@Override
-	public Node draw(String project, SwaggerClient artifact) {
+	public Node draw(Entry project, SwaggerClient artifact) {
 		return null;
 	}
 

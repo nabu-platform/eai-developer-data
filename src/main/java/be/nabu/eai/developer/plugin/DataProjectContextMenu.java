@@ -1,7 +1,6 @@
 package be.nabu.eai.developer.plugin;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,6 +15,7 @@ import be.nabu.eai.developer.managers.util.SimpleProperty;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.module.data.model.DataModelArtifact;
+import be.nabu.eai.module.data.model.DataModelEntry;
 import be.nabu.eai.module.data.model.DataModelManager;
 import be.nabu.eai.module.data.model.DataModelType;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
@@ -28,6 +28,7 @@ import be.nabu.eai.module.jdbc.pool.JDBCPoolArtifact;
 import be.nabu.eai.module.jdbc.pool.JDBCPoolManager;
 import be.nabu.eai.module.swagger.provider.SwaggerProvider;
 import be.nabu.eai.module.swagger.provider.SwaggerProviderManager;
+import be.nabu.eai.module.types.structure.StructureManager;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationManager;
 import be.nabu.eai.module.web.application.WebFragment;
@@ -35,14 +36,13 @@ import be.nabu.eai.module.web.application.api.TargetAudience;
 import be.nabu.eai.module.web.component.WebComponent;
 import be.nabu.eai.module.web.component.WebComponentManager;
 import be.nabu.eai.module.web.resources.WebComponentContextMenu;
-import be.nabu.eai.repository.EAINode;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.ProjectImpl;
 import be.nabu.eai.repository.api.Entry;
-import be.nabu.eai.repository.api.Node;
 import be.nabu.eai.repository.api.ResourceEntry;
+import be.nabu.eai.repository.impl.RepositoryArtifactResolver;
 import be.nabu.eai.repository.resources.RepositoryEntry;
-import be.nabu.eai.server.RemoteServer;
+import be.nabu.eai.repository.resources.RepositoryResourceResolver;
 import be.nabu.jfx.control.tree.Tree;
 import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.libs.artifacts.api.Artifact;
@@ -58,7 +58,7 @@ import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.DefinedTypeRegistry;
 import be.nabu.libs.types.properties.CollectionNameProperty;
-import be.nabu.utils.mime.impl.FormatException;
+import be.nabu.libs.types.structure.DefinedStructure;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -70,6 +70,15 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Tab;
 import javafx.scene.layout.VBox;
 
+/**
+ * when you add a table from the database, check if there is a type that is already synchronized from elsewhere (e.g. node)
+ * 		add it to the datamodel, rather than adding it as a local type, add CRUD though
+ * Add a "swaggerui" button to the web application viewer (and the titlebar in full with the address...)
+ * Add automatic tunneling of newly setup http server! (if applicable)
+ * Add only tabs for "managed" projects of type "standard"
+ * Once a new project is created, add a new tab for it automatically and jump to it!
+ * In repository browser, allow for the "pretty names"? to be shown
+ */
 public class DataProjectContextMenu implements EntryContextMenuProvider {
 
 	public static final String MISC_FOLDER = "shared";
@@ -105,6 +114,8 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 										String repoName = NamingConvention.LOWER_CAMEL_CASE.apply(name);
 										RepositoryEntry createDirectory = ((RepositoryEntry) entry).createDirectory(repoName);
 										ProjectImpl project = new ProjectImpl();
+										// standard project type
+										project.setType("standard");
 										project.setName(name);
 										createDirectory.setProject(project);
 										
@@ -174,9 +185,9 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 					SwaggerProvider swagger = getOrCreateSwagger(projectEntry, "site");
 					// by creating the model before the database, it should automatically get picked up and auto-managed?
 					set(action, bar, "Creating data model", stepCounter++, totalSteps);
-					getOrCreateDatamodel(projectEntry);
+					DataModelArtifact datamodel = getOrCreateMainDatamodel(projectEntry);
 					set(action, bar, "Creating database", stepCounter++, totalSteps);
-					JDBCPoolArtifact jdbc = getOrCreateJDBCPool(projectEntry);
+					JDBCPoolArtifact jdbc = getOrCreateMainJDBCPool(projectEntry, datamodel);
 					set(action, bar, "Creating application", stepCounter++, totalSteps);
 					WebApplication application = getOrCreateWebApplication(projectEntry, "site", TargetAudience.CUSTOMER);
 					
@@ -193,6 +204,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 							@Override
 							public void run() {
 								MainController.getInstance().getRepositoryBrowser().refresh();
+								new DataView().loadProject(MainController.getInstance(), projectEntry);
 							}
 						});
 						if (exception == null) {
@@ -232,7 +244,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 			Entry child = entry.getChild("application");
 			if (child == null) {
 				VirtualHostArtifact host = getOrCreateVirtualHost(projectEntry, getOrCreateHTTPServer(projectEntry));
-				JDBCPoolArtifact jdbc = getOrCreateJDBCPool(projectEntry);
+				JDBCPoolArtifact jdbc = getOrCreateMainJDBCPool(projectEntry);
 				
 				// check if there are already applications on the host, if so, we can't take their paths
 				List<String> paths = new ArrayList<String>();
@@ -243,7 +255,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 				}
 				
 				RepositoryEntry applicationEntry = ((RepositoryEntry) entry).createNode("application", new WebApplicationManager(), true);
-				applicationEntry.getNode().setName(NamingConvention.UPPER_TEXT.apply(applicationName));
+				applicationEntry.getNode().setName(projectEntry.getProject().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName));
 				applicationEntry.saveNode();
 				
 				child = applicationEntry;
@@ -268,8 +280,14 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 						path += "1";
 					}
 				}
-				application.getConfig().setPath(path);
+				application.getConfig().setPath(path.equals("/") ? null : path);
 				application.getConfig().setWebFragments(new ArrayList<WebFragment>(Arrays.asList(getOrCreateAPIComponent(projectEntry, applicationName), getOrCreateSwagger(projectEntry, applicationName))));
+				
+				// if we have swaggerui installed, add it
+				Artifact resolve = projectEntry.getRepository().resolve("nabu.web.swagger.swaggerui");
+				if (resolve != null) {
+					application.getConfig().getWebFragments().add((WebFragment) resolve);
+				}
 				
 				// add the cms all, task manage etc etc
 				// we add any component flagged as being standard for your target audience
@@ -353,7 +371,9 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 				RepositoryEntry swaggerEntry = miscFolder.createNode("swagger", new SwaggerProviderManager(), true);
 				child = swaggerEntry;
 				SwaggerProvider swagger = new SwaggerProvider(swaggerEntry.getId(), swaggerEntry.getContainer(), swaggerEntry.getRepository());
-				swagger.getConfig().setBasePath("/api/otr");
+				// we can't set the base path for most applications, as cms etc don't fall under this path...
+				// this would remove things like remember, login etc...
+//				swagger.getConfig().setBasePath("/api/otr");
 				new SwaggerProviderManager().save(swaggerEntry, swagger);
 			}
 			return (SwaggerProvider) child.getNode().getArtifact();
@@ -363,9 +383,10 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 		}
 	}
 	
-	public static DataModelArtifact getOrCreateDatamodel(RepositoryEntry projectEntry) {
+	public static DataModelArtifact getOrCreateMainDatamodel(RepositoryEntry projectEntry) {
 		try {
 			RepositoryEntry miscFolder = getFolder(projectEntry, "database");
+			miscFolder = getFolder(miscFolder, "main");
 			Entry child = miscFolder.getChild("model");
 			if (child == null) {
 				RepositoryEntry dataModelEntry = miscFolder.createNode("model", new DataModelManager(), true);
@@ -388,8 +409,8 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 			if (child == null) {
 				RepositoryEntry componentEntry = miscFolder.createNode("api", new WebComponentManager(), true);
 				child = componentEntry;
-				componentEntry.getNode().setName(applicationName + " API");
-				componentEntry.getNode().setTags(new ArrayList<String>(Arrays.asList(applicationName + " API")));
+				componentEntry.getNode().setName(projectEntry.getProject().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName) + " API");
+				componentEntry.getNode().setTags(new ArrayList<String>(Arrays.asList("Main API")));
 				componentEntry.saveNode();
 				WebComponent component = new WebComponent(componentEntry.getId(), componentEntry.getContainer(), componentEntry.getRepository());
 				component.getConfig().setPath("/api/otr");
@@ -462,13 +483,111 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 			throw new RuntimeException(e);
 		}
 	}
-
-	public static JDBCPoolArtifact getOrCreateJDBCPool(RepositoryEntry projectEntry) {
+	
+	// add a defined structure
+	public static void addType(JDBCPoolArtifact database, DefinedStructure type, boolean synchronize) {
+		// the database itself, e.g. test.database.main.connection
+		Entry entry = database.getRepository().getEntry(database.getId());
+		// the parent folder, e.g. test.database.main
+		entry = entry.getParent();
+		// we add the type to that folder
+		StructureManager manager = new StructureManager();
+		try {
+			RepositoryEntry repositoryEntry = ((RepositoryEntry) entry).createNode(type.getName(), manager, true);
+			manager.saveContent(repositoryEntry, type);
+			MainController.getInstance().getRepositoryBrowser().refresh();
+			MainController.getInstance().getAsynchronousRemoteServer().reload(repositoryEntry.getId());
+		}
+		catch (Exception e) {
+			MainController.getInstance().notify(e);
+		}
+		boolean dataModelFound = false;
+		try {
+			// we add the type to the data model (if any)
+			// we assume the data model is synchronized to the jdbc pool, we don't do it here if it's not
+			for (Entry child : entry) {
+				if (child.isNode() && DataModelArtifact.class.isAssignableFrom(child.getNode().getArtifactClass())) {
+					dataModelFound = true;
+					DataModelArtifact model = (DataModelArtifact) child.getNode().getArtifact();
+					if (model.getConfig().getEntries() == null) {
+						model.getConfig().setEntries(new ArrayList<DataModelEntry>());
+					}
+					DataModelEntry modelEntry = new DataModelEntry();
+					modelEntry.setType(type);
+					model.getConfig().getEntries().add(modelEntry);
+					new DataModelManager().save((ResourceEntry) child, model);
+					MainController.getInstance().getAsynchronousRemoteServer().reload(model.getId());
+					MainController.getInstance().getCollaborationClient().updated(model.getId(), "Added managed types");
+				}
+			}
+			// synchronize to the database if the model is not found 
+			if (!dataModelFound && synchronize) {
+				if (database.getConfig().getManagedTypes() != null) {
+					database.getConfig().setManagedTypes(new ArrayList<DefinedType>());
+				}
+				database.getConfig().getManagedTypes().add(type);
+				new JDBCPoolManager().save((ResourceEntry) entry.getRepository().getEntry(database.getId()), database);
+				MainController.getInstance().getAsynchronousRemoteServer().reload(database.getId());
+				MainController.getInstance().getCollaborationClient().updated(database.getId(), "Added managed types");
+			}
+			
+			// if we want to synchronize, immediately push it to the database
+			if (synchronize) {
+				GenerateDatabaseScriptContextMenu.synchronizeManagedTypes(database);
+			}
+		}
+		catch (Exception e) {
+			MainController.getInstance().notify(e);
+		}
+	}
+	
+	public static JDBCPoolArtifact getMainJDBCPool(RepositoryEntry projectEntry, boolean allowExternalResolve) {
+		JDBCPoolArtifact namingMatch = null;
+		JDBCPoolArtifact contextMatch = null;
+		JDBCPoolArtifact firstMatch = null;
+		for (JDBCPoolArtifact potential : projectEntry.getRepository().getArtifacts(JDBCPoolArtifact.class)) {
+			if (potential.getId().startsWith(projectEntry.getId() + ".")) {
+				// just...any match
+				if (firstMatch == null) {
+					firstMatch = potential;
+				}
+				if (potential.getContext() != null && Arrays.asList(potential.getContext().split("[\\s]*,[\\s]*")).contains(projectEntry.getId())) {
+					contextMatch = potential;
+				}
+				if (potential.getId().startsWith(projectEntry.getId() + ".database.main.")) {
+					namingMatch = potential;
+				}
+			}
+		}
+		// if someone has explicitly configured the context match, we use that
+		if (contextMatch != null) {
+			return contextMatch;
+		}
+		// otherwise, if you are in the correct place, we assume you are the one
+		if (namingMatch != null) {
+			return namingMatch;
+		}
+		// otherwise, if you are in the project, we use that
+		if (firstMatch != null) {
+			return firstMatch;
+		}
+		// we found no database in the project, if we allow for external resolving (depends on the usecase), check broader
+		if (allowExternalResolve) {
+			return new RepositoryArtifactResolver<JDBCPoolArtifact>(projectEntry.getRepository(), JDBCPoolArtifact.class).getResolvedArtifact(projectEntry.getId());
+		}
+		// we could not find one in the project
+		else {
+			return null;
+		}
+	}
+	
+	public static JDBCPoolArtifact getOrCreateMainJDBCPool(RepositoryEntry projectEntry, DefinedTypeRegistry...registries) {
 		// now we want to add configuration for the jdbc pool as well
-		JDBCPoolArtifact jdbc = getApplicationArtifact(projectEntry, JDBCPoolArtifact.class);
+		JDBCPoolArtifact jdbc = getMainJDBCPool(projectEntry, false);
 		if (jdbc == null) {
 			try {
 				RepositoryEntry entry = getFolder(projectEntry, "database");
+				entry = getFolder(entry, "main");
 				
 				RepositoryEntry jdbcEntry = ((RepositoryEntry) entry).createNode("connection", new JDBCPoolManager(), true);
 				jdbc = new JDBCPoolArtifact(jdbcEntry.getId(), jdbcEntry.getContainer(), jdbcEntry.getRepository());
@@ -500,11 +619,27 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 				if (jdbc.getConfig().getManagedModels() == null) {
 					jdbc.getConfig().setManagedModels(new ArrayList<DefinedTypeRegistry>());
 				}
+				if (registries != null) {
+					jdbc.getConfig().getManagedModels().addAll(Arrays.asList(registries));
+				}
 				Map<String, DefinedTypeRegistry> definedModelNames = new HashMap<String, DefinedTypeRegistry>();
 				for (DefinedTypeRegistry managed : jdbc.getConfig().getManagedModels()) {
 					definedModelNames.put(managed.getId(), managed);
 				}
 				for (DefinedTypeRegistry registry : entry.getRepository().getArtifacts(DefinedTypeRegistry.class)) {
+					boolean isFromProject = false;
+					// if the registry belongs to another project, we don't import it!
+					Entry registryEntry = entry.getRepository().getEntry(registry.getId());
+					while (registryEntry != null) {
+						if (registryEntry.isProject()) {
+							isFromProject = true;
+							break;
+						}
+						registryEntry = registryEntry.getParent();
+					}
+					if (isFromProject) {
+						continue;
+					}
 					for (String namespace : registry.getNamespaces()) {
 						for (ComplexType potential : registry.getComplexTypes(namespace)) {
 							if (!(potential instanceof DefinedType)) {

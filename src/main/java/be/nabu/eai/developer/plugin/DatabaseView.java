@@ -73,7 +73,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 	}
 
 	@Override
-	public Node draw(String project, JDBCPoolArtifact artifact) {
+	public Node draw(Entry project, JDBCPoolArtifact artifact) {
 		VBox box = new VBox();
 		ProgressIndicator indicator = new ProgressIndicator();
 		box.getChildren().add(indicator);
@@ -168,13 +168,14 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 												((RepositoryEntry) typeChild).refresh(true, false);
 												MainController.getInstance().getCollaborationClient().created(structure.getId(), "Added defined type for table: " + table.getName());
 												MainController.getInstance().getAsynchronousRemoteServer().reload(structure.getId());
-												JDBCPoolUtils.relink(artifact, Arrays.asList(table));
 												
 												// update jdbc pool
 												if (artifact.getConfig().getManagedTypes() == null) {
 													artifact.getConfig().setManagedTypes(new ArrayList<DefinedType>());
 												}
 												artifact.getConfig().getManagedTypes().add((DefinedType) structure);
+												// only relink _after_ it is added...
+												JDBCPoolUtils.relink(artifact, Arrays.asList(table));
 												new JDBCPoolManager().save((ResourceEntry) artifact.getRepository().getEntry(artifact.getId()), artifact);
 												
 												MainController.getInstance().getCollaborationClient().updated(artifact.getId(), "Added managed type: " + structure.getId());
@@ -250,7 +251,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 		return box;
 	}
 	
-	private void drawTypes(String project, JDBCPoolArtifact artifact) {
+	private void drawTypes(Entry project, JDBCPoolArtifact artifact) {
 		typesBox.getChildren().clear();
 		managedCollectionNames.clear();
 		List<DefinedType> types = artifact.getConfig().getManagedTypes();
@@ -258,7 +259,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 			for (DefinedType type : types) {
 				// we are currently? only interested in types that live in our project
 				// otherwise we might be faced with a ton of types from cms, analysis,...
-				if (type == null || !type.getId().startsWith(project + ".")) {
+				if (type == null || !type.getId().startsWith(project.getId() + ".")) {
 					continue;
 				}
 				
@@ -331,9 +332,9 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 		}
 	}
 	
-	private CRUDArtifact getCRUD(String project, JDBCPoolArtifact artifact, DefinedType type) {
+	private CRUDArtifact getCRUD(Entry project, JDBCPoolArtifact artifact, DefinedType type) {
 		for (CRUDArtifact crud : MainController.getInstance().getRepository().getArtifacts(CRUDArtifact.class)) {
-			if (crud.getId().startsWith(project + ".") && crud.getConfig().getCoreType() != null && type.getId().equals(crud.getConfig().getCoreType().getId())) {
+			if (crud.getId().startsWith(project.getId() + ".") && crud.getConfig().getCoreType() != null && type.getId().equals(crud.getConfig().getCoreType().getId())) {
 				return crud;
 			}
 		}
@@ -396,7 +397,7 @@ public class DatabaseView implements ArtifactViewer<JDBCPoolArtifact> {
 	}
 
 	@Override
-	public List<Button> getButtons(String project, JDBCPoolArtifact artifact) {
+	public List<Button> getButtons(Entry project, JDBCPoolArtifact artifact) {
 		Button button = new Button();
 		DataView.getInstance().getOpen(artifact.getId() + ":add").addListener(new ChangeListener<Boolean>() {
 			@Override

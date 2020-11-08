@@ -2,6 +2,7 @@ package be.nabu.eai.developer.plugin;
 
 import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.module.web.application.WebApplication;
+import be.nabu.eai.repository.api.Entry;
 import javafx.scene.Node;
 
 public class WebApplicationView implements ArtifactViewer<WebApplication> {
@@ -27,7 +28,7 @@ public class WebApplicationView implements ArtifactViewer<WebApplication> {
 	}
 
 	@Override
-	public Node draw(String project, WebApplication artifact) {
+	public Node draw(Entry project, WebApplication artifact) {
 		return null;
 	}
 }

@@ -284,13 +284,25 @@ public class DataView implements DeveloperPlugin {
 		return box;
 	}
 	
+	private void findProjects(Entry parent, List<Entry> projects) {
+		for (Entry child : parent) {
+			if (child.isProject() && "standard".equals(child.getProject().getType())) {
+				projects.add(child);
+			}
+			// can't have two projects (of this type) in one another
+			else {
+				findProjects(child, projects);
+			}
+		}
+	}
+	
 	@Override
 	public void initialize(MainController controller) {
 		MainController.registerStyleSheet("developer-data.css");
-		for (Entry child : controller.getRepository().getRoot()) {
-			if (!child.getName().equals("nabu")) {
-				loadProject(controller, child.getName());
-			}
+		List<Entry> projects = new ArrayList<Entry>();
+		findProjects(controller.getRepository().getRoot(), projects);
+		for (Entry child : projects) {
+			loadProject(controller, child);
 		}
 		// we always add a tab to create a new project
 		Tab tab = new Tab("New Project");
@@ -301,9 +313,9 @@ public class DataView implements DeveloperPlugin {
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private void loadProject(MainController controller, String project) {
-		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(project, NamingConvention.LOWER_CAMEL_CASE));
-		tab.setId(project);
+	public void loadProject(MainController controller, Entry projectEntry) {
+		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(projectEntry.getProject().getName(), NamingConvention.LOWER_CAMEL_CASE));
+		tab.setId(projectEntry.getId());
 		controller.getTabBrowsers().getTabs().add(0, tab);
 		
 		ScrollPane scroll = new ScrollPane();
@@ -351,11 +363,11 @@ public class DataView implements DeveloperPlugin {
 			List<?> artifacts = controller.getRepository().getArtifacts(viewer.getArtifactClass());
 			for (Object artifact : artifacts) {
 				String id = ((Artifact) artifact).getId();
-				if (viewer.allow(project, id)) {
-					Node draw = viewer.draw(project, (Artifact) artifact);
+				if (viewer.allow(projectEntry, id)) {
+					Node draw = viewer.draw(projectEntry, (Artifact) artifact);
 					VBox artifactContainer = new VBox();
 					
-					Button[] array = (Button[]) viewer.getButtons(project, (Artifact) artifact).toArray(new Button[0]);
+					Button[] array = (Button[]) viewer.getButtons(projectEntry, (Artifact) artifact).toArray(new Button[0]);
 					HBox artifactBox = newArtifactBox((Artifact) artifact, draw != null, array);
 					
 					if (viewer.getArtifactGraphic() != null) {
