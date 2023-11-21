@@ -16,6 +16,7 @@ import be.nabu.eai.developer.plugin.api.ArtifactViewer;
 import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.repository.EAINode;
+import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -286,7 +287,7 @@ public class DataView implements DeveloperPlugin {
 	
 	private void findProjects(Entry parent, List<Entry> projects) {
 		for (Entry child : parent) {
-			if (child.isProject() && "standard".equals(child.getProject().getType())) {
+			if (EAIRepositoryUtils.isProject(child) && "standard".equals(child.getCollection().getSubType())) {
 				projects.add(child);
 			}
 			// can't have two projects (of this type) in one another
@@ -314,7 +315,7 @@ public class DataView implements DeveloperPlugin {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void loadProject(MainController controller, Entry projectEntry) {
-		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(projectEntry.getProject().getName(), NamingConvention.LOWER_CAMEL_CASE));
+		Tab tab = new Tab(NamingConvention.UPPER_TEXT.apply(projectEntry.getCollection().getName(), NamingConvention.LOWER_CAMEL_CASE));
 		tab.setId(projectEntry.getId());
 		controller.getTabBrowsers().getTabs().add(0, tab);
 		

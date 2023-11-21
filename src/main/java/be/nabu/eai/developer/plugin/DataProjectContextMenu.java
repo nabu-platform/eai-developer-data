@@ -37,7 +37,8 @@ import be.nabu.eai.module.web.component.WebComponent;
 import be.nabu.eai.module.web.component.WebComponentManager;
 import be.nabu.eai.module.web.resources.WebComponentContextMenu;
 import be.nabu.eai.repository.EAIResourceRepository;
-import be.nabu.eai.repository.ProjectImpl;
+import be.nabu.eai.repository.CollectionImpl;
+import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.impl.RepositoryArtifactResolver;
@@ -91,7 +92,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 			boolean isPartOfProject = false;
 			Entry lookup = entry;
 			while (lookup != null) {
-				if (lookup.isProject()) {
+				if (EAIRepositoryUtils.isProject(lookup)) {
 					isPartOfProject = true;
 					break;
 				}
@@ -113,11 +114,11 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 									try {
 										String repoName = NamingConvention.LOWER_CAMEL_CASE.apply(name);
 										RepositoryEntry createDirectory = ((RepositoryEntry) entry).createDirectory(repoName);
-										ProjectImpl project = new ProjectImpl();
+										CollectionImpl project = new CollectionImpl();
 										// standard project type
 										project.setType("standard");
 										project.setName(name);
-										createDirectory.setProject(project);
+										createDirectory.setCollection(project);
 										
 										Tree<Entry> control = MainController.getInstance().getRepositoryBrowser().getControl();
 										// we need to refresh the parent we created it in
@@ -255,7 +256,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 				}
 				
 				RepositoryEntry applicationEntry = ((RepositoryEntry) entry).createNode("application", new WebApplicationManager(), true);
-				applicationEntry.getNode().setName(projectEntry.getProject().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName));
+				applicationEntry.getNode().setName(projectEntry.getCollection().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName));
 				applicationEntry.saveNode();
 				
 				child = applicationEntry;
@@ -409,7 +410,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 			if (child == null) {
 				RepositoryEntry componentEntry = miscFolder.createNode("api", new WebComponentManager(), true);
 				child = componentEntry;
-				componentEntry.getNode().setName(projectEntry.getProject().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName) + " API");
+				componentEntry.getNode().setName(projectEntry.getCollection().getName() + " " + NamingConvention.UPPER_TEXT.apply(applicationName) + " API");
 				componentEntry.getNode().setTags(new ArrayList<String>(Arrays.asList("Main API")));
 				componentEntry.saveNode();
 				WebComponent component = new WebComponent(componentEntry.getId(), componentEntry.getContainer(), componentEntry.getRepository());
@@ -631,7 +632,7 @@ public class DataProjectContextMenu implements EntryContextMenuProvider {
 					// if the registry belongs to another project, we don't import it!
 					Entry registryEntry = entry.getRepository().getEntry(registry.getId());
 					while (registryEntry != null) {
-						if (registryEntry.isProject()) {
+						if (EAIRepositoryUtils.isProject(registryEntry)) {
 							isFromProject = true;
 							break;
 						}
